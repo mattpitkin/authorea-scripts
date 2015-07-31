@@ -40,7 +40,9 @@ MAIN_TEMPLATE = r"""
 \end{{document}}
 """
 
-FIGURE_TEMPLATE=r"""
+# a dictionary to return the figure template for a particular style
+figure_template {}
+figure_template['default'] = r"""
 \begin{figure}[h!]
 \begin{center}
 \includegraphics[width=1\columnwidth]{<figfn>}
@@ -48,7 +50,11 @@ FIGURE_TEMPLATE=r"""
 \end{center}
 \end{figure}
 """.replace('{', '{{').replace('}', '}}').replace('<', '{').replace('>', '}')
-
+figure_template['epubtk'] = r"""
+\epubtkImage{<pngfn>}{ %% png version of figure
+%s
+} %%
+""".replace('{', '{{').replace('}', '}}').replace('<', '{').replace('>', '}') % figure_template['default']
 
 def get_input_string(filename, localdir, quotepath=True):
     if filename.endswith('.tex'):
@@ -60,7 +66,7 @@ def get_input_string(filename, localdir, quotepath=True):
     return r'\input{' + quote_chr + os.path.join(os.path.abspath(localdir), filename) + quote_chr + '}'
 
 
-def get_figure_string(filename, localdir):
+def get_figure_string(filename, localdir, style):
     figdir, figfn = os.path.split(filename)
     figdir = os.path.join(localdir, figdir)
 
@@ -70,11 +76,14 @@ def get_figure_string(filename, localdir):
     figfn = os.path.join(figdir, figfn)
     pdffn = os.path.join(figdir, figfnbase + '.pdf')
     epsfn = os.path.join(figdir, figfnbase + '.eps')
+    pngfn = os.path.join(figdir, figfnbase + '.png')
 
     if not os.path.exists(pdffn):
         pdffn = None
     if not os.path.exists(epsfn):
         epsfn = None
+    if not os.path.exists(pngfn):
+        pngfn = None
 
     if pdffn or epsfn:
         figfn = os.path.join(figdir, figfnbase)
@@ -87,11 +96,12 @@ def get_figure_string(filename, localdir):
     else:
         caption = ''
 
-    return FIGURE_TEMPLATE.format(**locals())
+    return figure_template[style].format(**locals())
 
 
 def build_authorea_latex(localdir, builddir, latex_exec, bibtex_exec, outname,
-                         usetitle, dobibtex, npostbibcalls, openwith, titleinput):
+                         usetitle, dobibtex, npostbibcalls, openwith, titleinput,
+                         style):
     if not os.path.exists(builddir):
         os.mkdir(builddir)
 
@@ -137,9 +147,9 @@ def build_authorea_latex(localdir, builddir, latex_exec, bibtex_exec, outname,
             elif ls.endswith('.html') or ls.endswith('.htm'):
                 pass  # html files aren't latex-able
             elif ls.startswith('figures'):
-                sectioninputs.append(get_figure_string(ls, localdir))
+                sectioninputs.append(get_figure_string(ls, localdir, style))
             else:
-                sectioninputs.append(get_input_string(ls, localdir))
+                sectioninputs.append(get_input_string(ls, localdir, style))
     sectioninputs = '\n'.join(sectioninputs)
 
     maintexstr = MAIN_TEMPLATE.format(**locals())
@@ -204,6 +214,11 @@ if __name__ == '__main__':
                              'generated tex file. This is useful because \\input'
                              'sometimes prevents the title from being cased '
                              'correctly.', default=False)
+    parser.add_argument('--style', '-s', default='default', dest='style',
+                        help='Provide a specific value to format things '
+                             'for a particular publication style. At the '
+                             'moment the only option is "epubtk" for the '
+                             'Living Reviews style file.')
     parser.add_argument('--n-runs-after-bibtex', '-n', type=int, default=3,
                         help='The number of times to call latex after bibtex.')
     parser.add_argument('--open-with', '-o', default=None,
@@ -214,4 +229,5 @@ if __name__ == '__main__':
 
     build_authorea_latex(args.localdir, args.build_dir, args.latex, args.bibtex,
                          args.filename, args.usetitle, args.usebibtex,
-                         args.n_runs_after_bibtex, args.open_with, args.titleinput)
+                         args.n_runs_after_bibtex, args.open_with, args.titleinput,
+                         args.style)
